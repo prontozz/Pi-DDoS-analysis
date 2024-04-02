@@ -1,67 +1,66 @@
 import psutil
 import subprocess
 import time
+from datetime import datetime
+import argparse
 
-# Define the IP address of the Raspberry Pi
-raspberry_pi_ip = 'YOUR_RASPBERRY_PI_IP_ADDRESS'
+def parse_args():
+    parser = argparse.ArgumentParser(description='DDoS Monitoring Script')
+    parser.add_argument('-p', '--port', type=int, help='Port to monitor', required=True)
+    parser.add_argument('-s', '--source-ip', type=str, help='IP address of the attackers', required=True)
+    parser.add_argument('-f', '--filename', type=str, help='Filename for the log file', default='system_metrics.csv')
+    return parser.parse_args()
 
-# Define the path for the log file
-log_file = 'system_metrics.csv'
+def main():
+    args = parse_args()
 
-# Define dictionary to track connection timestamps and traffic
-connection_data = {}
+    port = args.port
+    attackers_ip = args.source_ip
+    log_file = args.filename
 
-# Open the log file in append mode
-with open(log_file, 'a') as f:
-    # Write header line to the log file
-    f.write('Timestamp,Duration (s),CPU Usage (%),Memory Usage (%),Incoming Traffic (bytes),Outgoing Traffic (bytes),Packets Sent\n')
-    
-    # Continuously monitor system and network metrics and write to log file
-    while True:
-        # Get current timestamp
-        timestamp = time.time()
-        
-        # Get CPU usage as a percentage
-        cpu_usage = psutil.cpu_percent(interval=1)
-        
-        # Get memory usage as a percentage
-        memory_usage = psutil.virtual_memory().percent
-        
-        # Get incoming and outgoing network traffic in bytes
-        netstat_output = subprocess.check_output(['netstat', '-i']).decode()
-        lines = netstat_output.split('\n')[2:]
-        incoming_traffic = 0
-        outgoing_traffic = 0
-        for line in lines:
-            if line:
-                interface, _, _, _, _, _, _, _, _, rx_bytes, tx_bytes = line.split()
-                if interface != 'lo':
-                    incoming_traffic += int(rx_bytes)
-                    outgoing_traffic += int(tx_bytes)
-        
-        # Get the number of packets sent from the Raspberry Pi's IP address
-        packets_sent = subprocess.check_output(['tcpdump', '-qtnn', '-c', '1000', 'src', raspberry_pi_ip]).decode().count('\n')
-        
-        # Update connection data dictionary
-        connections = subprocess.check_output(['netstat', '-tn']).decode()
-        for line in connections.split('\n')[2:]:
-            if line:
-                parts = line.split()
-                src_ip, _, dst_ip = parts[3].rpartition(':')
-                state = parts[5]
-                if dst_ip == raspberry_pi_ip and state == 'ESTABLISHED':
-                    if src_ip not in connection_data:
-                        connection_data[src_ip] = {'start_time': timestamp, 'traffic': 0}
-                    else:
-                        connection_data[src_ip]['traffic'] += int(parts[0])
-        
-        # Calculate duration of connections and total traffic for each IP address
-        for src_ip, data in connection_data.items():
-            duration = timestamp - data['start_time']
-            total_traffic = data['traffic']
-            
-            # Write metrics to log file
-            f.write(f'{timestamp},{duration},{cpu_usage},{memory_usage},{incoming_traffic},{outgoing_traffic},{packets_sent}\n')
-        
-        # Wait for 1 second before collecting next data point
-        time.sleep(1)
+    connection_data = {}
+
+    with open(log_file, 'a') as f:
+        f.write('Timestamp,Duration,CPU Usage (%),Memory Usage (%),Incoming Traffic (MB),Outgoing Traffic (MB),Packets Sent\n')
+
+        while True:
+            timestamp = time.time()
+            formatted_timestamp = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            cpu_usage = psutil.cpu_percent(interval=1)
+            memory_usage = psutil.virtual_memory().percent
+
+            try:
+                netstat_output = subprocess.check_output(['netstat', '-i']).decode()
+                lines = netstat_output.split('\n')[2:]
+                incoming_traffic = 0
+                outgoing_traffic = 0
+                for line in lines:
+                    if line:
+                        interface, _, _, _, _, _, _, _, _, rx_bytes, tx_bytes = line.split()
+                        if interface != 'lo':
+                            incoming_traffic += int(rx_bytes)
+                            outgoing_traffic += int(tx_bytes)
+                incoming_traffic_mb = incoming_traffic / (1024 * 1024)
+                outgoing_traffic_mb = outgoing_traffic / (1024 * 1024)
+            except Exception as e:
+                print(f"Error getting network traffic: {e}")
+                incoming_traffic_mb = 0
+                outgoing_traffic_mb = 0
+
+            try:
+                packets_sent = subprocess.check_output(['tcpdump', '-qtnn', '-c', '1000', f'src {attackers_ip} and dst port {port}']).decode().count('\n')
+            except Exception as e:
+                print(f"Error getting packets sent: {e}")
+                packets_sent = 0
+
+            for src_ip, data in connection_data.items():
+                duration = timestamp - data['start_time']
+                formatted_duration = f"{int(duration // 60)} minutes {int(duration % 60)} seconds"
+                total_traffic = data['traffic']
+
+                f.write(f'{formatted_timestamp},{formatted_duration},{cpu_usage},{memory_usage},{incoming_traffic_mb:.2f},{outgoing_traffic_mb:.2f},{packets_sent}\n')
+
+            time.sleep(1)
+
+if __name__ == "__main__":
+    main()
