@@ -26,9 +26,23 @@ get_memory_usage() {
     echo "Memory Usage: $memory_usage%"
 }
 
+# Function to get disk I/O
+get_disk_io() {
+    # Use the iostat command to get disk I/O statistics
+    disk_io=$(iostat -d | grep -E "sda|sdb|sdc" | awk '{print "Disk "$1": "$2" read/s, "$3" write/s"}')
+    echo "$disk_io"
+}
+
+# Function to get network interface traffic
+get_network_traffic() {
+    # Use the ifconfig command to get network interface traffic statistics
+    network_traffic=$(ifconfig eth0 | grep "RX bytes\|TX bytes")
+    echo "$network_traffic"
+}
+
 # Function to log data to file
 log_data() {
-    echo "$(date) - $(get_cpu_temp) | $(get_cpu_usage) | $(get_memory_usage)" >> "$LOG_FILE"
+    echo "$(date) - $(get_cpu_temp) | $(get_cpu_usage) | $(get_memory_usage) | $(get_disk_io) | $(get_network_traffic)" >> "$LOG_FILE"
 }
 
 # Main function
@@ -47,3 +61,4 @@ main() {
 
 # Execute main function
 main
+
