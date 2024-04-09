@@ -26,13 +26,6 @@ get_memory_usage() {
     echo "Memory Usage: $memory_usage%"
 }
 
-# Function to get disk I/O
-get_disk_io() {
-    # Use the iostat command to get disk I/O statistics
-    disk_io=$(iostat -d | grep -E "sda|sdb|sdc" | awk '{print "Disk "$1": "$2" read/s, "$3" write/s"}')
-    echo "$disk_io"
-}
-
 # Function to get network interface traffic
 get_network_traffic() {
     # Use the ifconfig command to get network interface traffic statistics
@@ -42,7 +35,18 @@ get_network_traffic() {
 
 # Function to log data to file
 log_data() {
-    echo "$(date) - $(get_cpu_temp) | $(get_cpu_usage) | $(get_memory_usage) | $(get_disk_io) | $(get_network_traffic)" >> "$LOG_FILE"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') - $(get_cpu_temp) | $(get_cpu_usage) | $(get_memory_usage) | $(get_network_traffic)" >> "$LOG_FILE"
+}
+
+# Function for countdown
+countdown() {
+    secs=$1
+    while [ $secs -gt 0 ]; do
+        echo -ne "Starting in $secs seconds...\033[0K\r"
+        sleep 1
+        : $((secs--))
+    done
+    echo "Starting now!"
 }
 
 # Main function
@@ -52,13 +56,30 @@ main() {
         touch "$LOG_FILE"
     fi
 
-    # Log data every 5 seconds
+    # Display options for logging interval
+    echo "Select the time interval for logging data:"
+    echo "1. Every 500ms"
+    echo "2. Every 1s"
+    echo "3. Every 3s"
+    read -p "Enter your choice (1/2/3): " choice
+
+    case $choice in
+        1) interval=0.5 ;;
+        2) interval=1 ;;
+        3) interval=3 ;;
+        *) echo "Invalid choice. Defaulting to logging every 1 second."; interval=1 ;;
+    esac
+
+    # Countdown before starting
+    countdown 5
+
+    # Log data at specified interval
     while true; do
         log_data
-        sleep 5
+        # Ensure the log occurs precisely at the beginning of the next second
+        sleep $(echo "scale=3; $interval - $(date +%N) / 1000000000" | bc)
     done
 }
 
 # Execute main function
 main
-
