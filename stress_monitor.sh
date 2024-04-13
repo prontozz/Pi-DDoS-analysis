@@ -64,7 +64,7 @@ main() {
     read -p "Enter your choice (1/2/3): " choice
 
     case $choice in
-        1) interval=0.5 ;;
+        1) interval=0.5 ;; 
         2) interval=1 ;;
         3) interval=3 ;;
         *) echo "Invalid choice. Defaulting to logging every 1 second."; interval=1 ;;
