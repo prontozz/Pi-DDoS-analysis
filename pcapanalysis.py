@@ -8,25 +8,32 @@ from tqdm import tqdm
 def analyze_pcap(pcap_file):
     packets = rdpcap(pcap_file)
 
-    ip_counter = defaultdict(int)
+    ip_data = defaultdict(lambda: {'packet_count': 0, 'total_size': 0})
 
-    # Count packets and update progress bar
     progress_bar = tqdm(total=len(packets), desc="Analyzing Packets", unit="pkt")
     for packet in packets:
         progress_bar.update(1)
         if IP in packet:
             src_ip = packet[IP].src
-            ip_counter[src_ip] += 1
+            dst_ip = packet[IP].dst
+            proto = packet[IP].proto
+            length = len(packet)
+            timestamp = packet.time
+
+            ip_data[src_ip]['packet_count'] += 1
+            ip_data[src_ip]['total_size'] += length
+
     progress_bar.close()
 
     # Create a table with important data for DDoS attacks
     table_data = []
-    for src_ip, count in ip_counter.items():
-        table_data.append([src_ip, count])
+    for src_ip, data in ip_data.items():
+        packet_count = data['packet_count']
+        total_size = data['total_size']
+        avg_packet_size = total_size / packet_count if packet_count > 0 else 0
+        table_data.append([src_ip, packet_count, total_size, avg_packet_size])
 
-    headers = ["Source IP", "Packet Count"]
-
-    # Print table
+    headers = ["Source IP", "Packet Count", "Total Size", "Avg Packet Size"]
     print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
     # Save table to a text file

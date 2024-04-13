@@ -1,66 +1,69 @@
-import psutil
-import subprocess
-import time
-from datetime import datetime
-import argparse
+import os
+import sys
+from scapy.all import *
+from collections import defaultdict
+from tabulate import tabulate
+from tqdm import tqdm
 
-def parse_args():
-    parser = argparse.ArgumentParser(description='DDoS Monitoring Script')
-    parser.add_argument('-p', '--port', type=int, help='Port to monitor', required=True)
-    parser.add_argument('-s', '--source-ip', type=str, help='IP address of the attackers', required=True)
-    parser.add_argument('-f', '--filename', type=str, help='Filename for the log file', default='system_metrics.csv')
-    return parser.parse_args()
+def analyze_pcap(pcap_file):
+    packets = rdpcap(pcap_file)
 
-def main():
-    args = parse_args()
+    ip_data = defaultdict(lambda: {'packet_count': 0, 'total_size': 0})
 
-    port = args.port
-    attackers_ip = args.source_ip
-    log_file = args.filename
+    progress_bar = tqdm(total=len(packets), desc="Analyzing Packets", unit="pkt")
+    for packet in packets:
+        progress_bar.update(1)
+        if IP in packet:
+            src_ip = packet[IP].src
+            dst_ip = packet[IP].dst
+            proto = packet[IP].proto
+            length = len(packet)
+            timestamp = packet.time
 
-    connection_data = {}
+            ip_data[src_ip]['packet_count'] += 1
+            ip_data[src_ip]['total_size'] += length
 
-    with open(log_file, 'a') as f:
-        f.write('Timestamp,Duration,CPU Usage (%),Memory Usage (%),Incoming Traffic (MB),Outgoing Traffic (MB),Packets Sent\n')
+    progress_bar.close()
 
-        while True:
-            timestamp = time.time()
-            formatted_timestamp = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-            cpu_usage = psutil.cpu_percent(interval=1)
-            memory_usage = psutil.virtual_memory().percent
+    # Create a table with important data for DDoS attacks
+    table_data = []
+    for src_ip, data in ip_data.items():
+        packet_count = data['packet_count']
+        total_size = data['total_size']
+        avg_packet_size = total_size / packet_count if packet_count > 0 else 0
+        table_data.append([src_ip, packet_count, total_size, avg_packet_size])
 
-            try:
-                netstat_output = subprocess.check_output(['netstat', '-i']).decode()
-                lines = netstat_output.split('\n')[2:]
-                incoming_traffic = 0
-                outgoing_traffic = 0
-                for line in lines:
-                    if line:
-                        interface, _, _, _, _, _, _, _, _, rx_bytes, tx_bytes = line.split()
-                        if interface != 'lo':
-                            incoming_traffic += int(rx_bytes)
-                            outgoing_traffic += int(tx_bytes)
-                incoming_traffic_mb = incoming_traffic / (1024 * 1024)
-                outgoing_traffic_mb = outgoing_traffic / (1024 * 1024)
-            except Exception as e:
-                print(f"Error getting network traffic: {e}")
-                incoming_traffic_mb = 0
-                outgoing_traffic_mb = 0
+    headers = ["Source IP", "Packet Count", "Total Size", "Avg Packet Size"]
+    print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
-            try:
-                packets_sent = subprocess.check_output(['tcpdump', '-qtnn', '-c', '1000', f'src {attackers_ip} and dst port {port}']).decode().count('\n')
-            except Exception as e:
-                print(f"Error getting packets sent: {e}")
-                packets_sent = 0
+    # Save table to a text file
+    output_file = pcap_file + "_analysis.txt"
+    with open(output_file, "w") as file:
+        file.write(tabulate(table_data, headers=headers, tablefmt="grid"))
+    print(f"Analysis results saved to: {output_file}")
 
-            for src_ip, data in connection_data.items():
-                duration = timestamp - data['start_time']
-                formatted_duration = f"{int(duration // 60)} minutes {int(duration % 60)} seconds"
-                total_traffic = data['traffic']
+def select_pcap():
+    pcap_files = [file for file in os.listdir() if file.endswith(".pcap") or file.endswith(".pcapng")]
 
-                f.write(f'{formatted_timestamp},{formatted_duration},{cpu_usage},{memory_usage},{incoming_traffic_mb:.2f},{outgoing_traffic_mb:.2f},{packets_sent}\n')
+    if not pcap_files:
+        print("No pcap or pcapng files found in the directory.")
+        sys.exit(1)
 
-            time.sleep(1)
+    print("PCAP/PCAPNG files found in the directory:")
+    for idx, file in enumerate(pcap_files, start=1):
+        print(f"{idx}. {file}")
+
+    selection = input("Enter the number of the PCAP/PCAPNG file to analyze: ")
+    try:
+        selection = int(selection)
+        if selection < 1 or selection > len(pcap_files):
+            raise ValueError
+    except ValueError:
+        print("Invalid selection.")
+        sys.exit(1)
+
+    return pcap_files[selection - 1]
 
 if __name__ == "__main__":
-    main()
+    pcap_file = select_pcap()
+    analyze_pcap(pcap_file)
