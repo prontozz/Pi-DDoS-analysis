@@ -13,7 +13,7 @@ Below is a list/table providing an overview of each file in this repository:
 - **stressplotting.py:** Used to analyse the stress monitor log files and plot the data onto a graph.
 - **pcaptoCsv.py:** Converts the wireshark Pcap files into a CSV format for analysis.
 - **Pichart.py:** Reads all of the Pcap files within the specified directory and sorts which device sent the most packets from the DDoS attack into a Pichart format.
-- **temp:**
+- **stressHeatIncrease.py:** Reads a stress monitor file for the CPU temp increase to determine system stress
 - **temp:**
 
 Requirements
