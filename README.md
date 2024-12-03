@@ -5,6 +5,7 @@
 
 This repository contains data collection and analysis scripts for my dissertation project using python and bash for this, required packages can be found within the requirements.txt document.
 
+
 ### Overview of Files
 
 Below is a list/table providing an overview of each file in this repository:
@@ -30,24 +31,3 @@ Bash script
     sudo chmod +777 ./script.sh
     ./script.sh
     
-
-## Results
-### Overview
-
-Results gathered from the testing conducted for the dissertation will be displayed here to display the use of the scripts and how the data should be processed and displayed to the user.
-
-## Filler for now:
-Images
-
-[Include any images or visualizations generated from your data analysis. Provide a brief description or explanation for each image.]
-Image 1: [Title/Description]
-
-
-Explanation: [Briefly explain what the image shows and its significance]
-Image 2: [Title/Description]
-
-
-Explanation: [Briefly explain what the image shows and its significance]
-Data Analysis
-
-[Include any additional analysis or findings from your data, providing explanations or insights gained]
